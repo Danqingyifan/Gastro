@@ -1,0 +1,17 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "0.1.0",
+  "FriendlyName": "Gastro Framework",
+  "Description": "Composable, asset-free Gameplay Ability System foundation.",
+  "Category": "Gameplay",
+  "CanContainContent": false,
+  "Modules": [
+    { "Name": "GastroFramework", "Type": "Runtime", "LoadingPhase": "Default" },
+    { "Name": "GastroFrameworkTests", "Type": "Editor", "LoadingPhase": "PostEngineInit" }
+  ],
+  "Plugins": [
+    { "Name": "GameplayAbilities", "Enabled": true },
+    { "Name": "EnhancedInput", "Enabled": true }
+  ]
+}

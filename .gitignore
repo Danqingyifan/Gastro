@@ -1,0 +1,50 @@
+# =========================
+# Unreal Engine 5
+# =========================
+Binaries/
+Build/
+DerivedDataCache/
+Intermediate/
+Saved/
+
+*.sln
+*.suo
+*.sdf
+*.opensdf
+*.opendb
+*.VC.db
+*.xcodeproj/
+*.xcworkspace/
+Makefile
+CMakeLists.txt
+
+# =========================
+# JetBrains Rider
+# =========================
+.idea/
+*.DotSettings.user
+
+# =========================
+# Windows OS
+# =========================
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# =========================
+# Other IDEs
+# =========================
+.vs/
+.vscode/
+*.code-workspace
+
+# =========================
+# Crash and log files
+# =========================
+*.log
+*.crash
+*.dmp
