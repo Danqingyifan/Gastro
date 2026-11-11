@@ -1,10 +1,31 @@
 {
-  "FileVersion": 3,
-  "EngineAssociation": "5.8",
-  "Description": "Asset-free GastroFramework automation harness",
-  "Modules": [{ "Name": "Gastro", "Type": "Runtime", "LoadingPhase": "Default" }],
-  "Plugins": [
-    { "Name": "GastroFramework", "Enabled": true },
-    { "Name": "AndroidFileServer", "Enabled": false }
-  ]
+	"FileVersion": 3,
+	"EngineAssociation": "5.8",
+	"Category": "",
+	"Description": "Asset-free GastroFramework automation harness",
+	"Modules": [
+		{
+			"Name": "Gastro",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "GastroFramework",
+			"Enabled": true
+		},
+		{
+			"Name": "AndroidFileServer",
+			"Enabled": false
+		},
+		{
+			"Name": "AllToolsets",
+			"Enabled": true
+		},
+		{
+			"Name": "ModelContextProtocol",
+			"Enabled": true
+		}
+	]
 }
