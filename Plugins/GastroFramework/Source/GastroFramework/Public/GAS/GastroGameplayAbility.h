@@ -23,7 +23,7 @@ public:
     /** Called on every instantiated ability, including inactive instances. Clear cached avatar references here. */
     virtual void OnAvatarUninitializing(AActor* OldAvatar);
     UFUNCTION(BlueprintImplementableEvent, Category="Gastro|Lifecycle", meta=(DisplayName="On Avatar Uninitializing"))
-    void K2_OnAvatarUninitializing(AActor* OldAvatar);
+    void BP_OnAvatarUninitializing(AActor* OldAvatar);
     virtual bool CanActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
         const FGameplayTagContainer* SourceTags = nullptr, const FGameplayTagContainer* TargetTags = nullptr,
         FGameplayTagContainer* OptionalRelevantTags = nullptr) const override;

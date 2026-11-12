@@ -14,7 +14,7 @@ UGastroAbilitySystemComponent* UGastroGameplayAbility::GetGastroAbilitySystemCom
 
 void UGastroGameplayAbility::OnAvatarUninitializing(AActor* OldAvatar)
 {
-    K2_OnAvatarUninitializing(OldAvatar);
+    BP_OnAvatarUninitializing(OldAvatar);
     if (bEndOnAvatarUnbound && IsActive())
     {
         // Lifecycle termination is stronger than temporary gameplay cancellation restrictions.
