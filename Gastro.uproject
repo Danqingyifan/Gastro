@@ -15,6 +15,14 @@
 	],
 	"Plugins": [
 		{
+			"Name": "GameplayAbilities",
+			"Enabled": true
+		},
+		{
+			"Name": "EnhancedInput",
+			"Enabled": true
+		},
+		{
 			"Name": "GastroFramework",
 			"Enabled": true
 		},
