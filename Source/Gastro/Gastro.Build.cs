@@ -10,8 +10,14 @@ public class Gastro : ModuleRules
                 "Core","CoreUObject", "Engine",
                 "InputCore", "EnhancedInput",
                 "GameplayAbilities", "GameplayTags", "GameplayTasks",
-                "GastroFramework"
+                "GastroFramework", "UMG"
             }
         );  
+        PrivateDependencyModuleNames.AddRange(new[] { "Slate", "SlateCore" });
+        if (Target.bBuildEditor)
+        {
+            PublicDependencyModuleNames.Add("EditorSubsystem");
+            PrivateDependencyModuleNames.Add("UnrealEd");
+        }
     }
 }

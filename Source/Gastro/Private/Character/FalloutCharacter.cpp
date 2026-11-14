@@ -5,7 +5,9 @@
 #include "Engine/World.h"
 #include "EnhancedInputComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GAS/GastroAbilitySystemComponent.h"
 #include "Input/FalloutFPSInputConfig.h"
+#include "Input/FalloutInputTags.h"
 #include "Player/FalloutFPSPlayerController.h"
 
 AFalloutCharacter::AFalloutCharacter()
@@ -16,8 +18,8 @@ AFalloutCharacter::AFalloutCharacter()
     GetCapsuleComponent()->InitCapsuleSize(34.f, 96.f);
     auto* Movement = GetCharacterMovement();
     Movement->bOrientRotationToMovement = false;
-    Movement->MaxWalkSpeed = 600.f;
-    Movement->MaxWalkSpeedCrouched = 300.f;
+    Movement->MaxWalkSpeed = NormalWalkSpeed;
+    Movement->MaxWalkSpeedCrouched = CrouchedWalkSpeed;
     Movement->MaxAcceleration = 12000.f;
     Movement->BrakingDecelerationWalking = 12000.f;
     Movement->GroundFriction = 8.f;
@@ -42,6 +44,7 @@ AFalloutCharacter::AFalloutCharacter()
     FirstPersonCamera->FirstPersonFieldOfView = 70.f;
     FirstPersonCamera->FirstPersonScale = 0.6f;
 
+    // The arms follow the camera directly; this lesson adds no weapon motion.
     FirstPersonMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonMesh"));
     FirstPersonMesh->SetupAttachment(FirstPersonCamera);
     FirstPersonMesh->SetRelativeLocationAndRotation(FVector(0, 0, -168), FRotator(0, -90, 0));
@@ -49,6 +52,15 @@ AFalloutCharacter::AFalloutCharacter()
     FirstPersonMesh->FirstPersonPrimitiveType = EFirstPersonPrimitiveType::FirstPerson;
     FirstPersonMesh->SetCollisionProfileName(TEXT("NoCollision"));
     FirstPersonMesh->SetCastShadow(false);
+
+    FirstPersonWeapon = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonWeapon"));
+    FirstPersonWeapon->SetupAttachment(FirstPersonMesh, WeaponHandSocket);
+    FirstPersonWeapon->SetRelativeTransform(WeaponGripOffset);
+    FirstPersonWeapon->SetOnlyOwnerSee(true);
+    FirstPersonWeapon->FirstPersonPrimitiveType = EFirstPersonPrimitiveType::FirstPerson;
+    FirstPersonWeapon->SetCollisionProfileName(TEXT("NoCollision"));
+    FirstPersonWeapon->SetCastShadow(false);
+
     GetMesh()->SetRelativeLocationAndRotation(FVector(0, 0, -96), FRotator(0, -90, 0));
     GetMesh()->SetOwnerNoSee(true);
     GetMesh()->FirstPersonPrimitiveType = EFirstPersonPrimitiveType::WorldSpaceRepresentation;
@@ -59,11 +71,15 @@ AFalloutCharacter::AFalloutCharacter()
 void AFalloutCharacter::BeginPlay()
 {
     Super::BeginPlay();
+    GetCharacterMovement()->MaxWalkSpeed = NormalWalkSpeed;
+    GetCharacterMovement()->MaxWalkSpeedCrouched = CrouchedWalkSpeed;
     VisualEyeHeight = bIsCrouched ? CrouchingEyeHeight : StandingEyeHeight;
     // A mannequin is a placeholder viewmodel; never render its head or legs in the 1P view.
     FirstPersonMesh->HideBoneByName(TEXT("neck_01"), EPhysBodyOp::PBO_None);
     FirstPersonMesh->HideBoneByName(TEXT("thigh_l"), EPhysBodyOp::PBO_None);
     FirstPersonMesh->HideBoneByName(TEXT("thigh_r"), EPhysBodyOp::PBO_None);
+    FirstPersonWeapon->AttachToComponent(FirstPersonMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponHandSocket);
+    FirstPersonWeapon->SetRelativeTransform(WeaponGripOffset);
     PlaceCamera();
 }
 
@@ -83,25 +99,37 @@ void AFalloutCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
     }
     AxisInputComponent = Input;
     AxisBindingHandles.Add(Input->BindAction(FPSInputConfig->MoveAction, ETriggerEvent::Triggered, this, &ThisClass::MoveInput).GetHandle());
+    AxisBindingHandles.Add(Input->BindAction(FPSInputConfig->MoveAction, ETriggerEvent::Completed, this, &ThisClass::MoveInputReleased).GetHandle());
+    AxisBindingHandles.Add(Input->BindAction(FPSInputConfig->MoveAction, ETriggerEvent::Canceled, this, &ThisClass::MoveInputReleased).GetHandle());
     AxisBindingHandles.Add(Input->BindAction(FPSInputConfig->MouseLookAction, ETriggerEvent::Triggered, this, &ThisClass::LookInput).GetHandle());
     PC->ConfigureFPSInput(Input, FPSInputConfig);
 }
 
 void AFalloutCharacter::MoveInput(const FInputActionValue& Value) { Move(Value.Get<FVector2D>()); }
+void AFalloutCharacter::MoveInputReleased(const FInputActionValue& Value)
+{
+    LastMoveAxis = FVector2D::ZeroVector;
+    RefreshMovementSpeed();
+}
 void AFalloutCharacter::LookInput(const FInputActionValue& Value) { Look(Value.Get<FVector2D>()); }
 
 void AFalloutCharacter::Move(const FVector2D& Axis)
 {
     if (!Controller || Controller->IsMoveInputIgnored()) return;
     const FVector2D Clamped = Axis.GetClampedToMaxSize(1.f);
+    LastMoveAxis = Clamped;
     const FRotator Yaw(0, Controller->GetControlRotation().Yaw, 0);
     AddMovementInput(FRotationMatrix(Yaw).GetUnitAxis(EAxis::X), Clamped.Y);
     AddMovementInput(FRotationMatrix(Yaw).GetUnitAxis(EAxis::Y), Clamped.X);
+    RefreshMovementSpeed();
 }
 
 void AFalloutCharacter::Look(const FVector2D& MouseDelta)
 {
-    if (auto* PC = Cast<AFalloutFPSPlayerController>(Controller)) PC->ApplyMouseLook(MouseDelta);
+    if (auto* PC = Cast<AFalloutFPSPlayerController>(Controller))
+    {
+        PC->ApplyMouseLook(MouseDelta);
+    }
 }
 
 void AFalloutCharacter::PlaceCamera()
@@ -134,12 +162,69 @@ void AFalloutCharacter::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
 void AFalloutCharacter::OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
 {
     Super::OnStartCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
+    bSprintRequested = false;
+    if (auto* ASC = Cast<UGastroAbilitySystemComponent>(GetAbilitySystemComponent()))
+        ASC->AbilityInputTagReleased(FalloutInputTags::Sprint);
+    RefreshMovementSpeed();
     PlaceCamera();
 }
 void AFalloutCharacter::OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
 {
     Super::OnEndCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
+    RefreshMovementSpeed();
     PlaceCamera();
+}
+
+void AFalloutCharacter::OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode)
+{
+    Super::OnMovementModeChanged(PrevMovementMode, PreviousCustomMode);
+    if (GetCharacterMovement()->MovementMode != MOVE_Walking &&
+        GetCharacterMovement()->MovementMode != MOVE_NavWalking && bSprintRequested)
+    {
+        bSprintRequested = false;
+        if (auto* ASC = Cast<UGastroAbilitySystemComponent>(GetAbilitySystemComponent()))
+            ASC->AbilityInputTagReleased(FalloutInputTags::Sprint);
+    }
+    RefreshMovementSpeed();
+}
+
+bool AFalloutCharacter::CanStartSprint() const
+{
+    const auto* Movement = GetCharacterMovement();
+    return Movement && Movement->IsMovingOnGround() && !bIsCrouched && !bAiming;
+}
+
+bool AFalloutCharacter::IsSprinting() const
+{
+    const auto* Movement = GetCharacterMovement();
+    return bSprintRequested && !bIsCrouched && !bAiming && Movement && Movement->IsMovingOnGround() && LastMoveAxis.Y > 0.1f;
+}
+
+void AFalloutCharacter::SetSprintRequested(bool bRequested)
+{
+    bSprintRequested = bRequested && CanStartSprint();
+    RefreshMovementSpeed();
+}
+
+void AFalloutCharacter::SetAiming(bool bInAiming)
+{
+    bAiming = bInAiming;
+    if (bAiming)
+    {
+        bSprintRequested = false;
+        if (auto* ASC = Cast<UGastroAbilitySystemComponent>(GetAbilitySystemComponent()))
+            ASC->AbilityInputTagReleased(FalloutInputTags::Sprint);
+    }
+    RefreshMovementSpeed();
+}
+
+void AFalloutCharacter::RefreshMovementSpeed()
+{
+    auto* Movement = GetCharacterMovement();
+    if (!Movement) return;
+    const bool bSprintSpeed = bSprintRequested && !bIsCrouched && !bAiming &&
+        Movement->IsMovingOnGround() && LastMoveAxis.Y > 0.1f;
+    Movement->MaxWalkSpeed = bSprintSpeed ? SprintSpeed : NormalWalkSpeed;
 }
 bool AFalloutCharacter::CanJumpInternal_Implementation() const
 {
@@ -149,6 +234,10 @@ void AFalloutCharacter::ResetActionIntent()
 {
     StopJumping();
     UnCrouch();
+    bSprintRequested = false;
+    bAiming = false;
+    LastMoveAxis = FVector2D::ZeroVector;
+    RefreshMovementSpeed();
     ConsumeMovementInputVector();
 }
 void AFalloutCharacter::UnPossessed()
